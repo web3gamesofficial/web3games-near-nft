@@ -10,9 +10,6 @@ use near_sdk::{
     env, near_bindgen, AccountId, BorshStorageKey, PanicOnDefault, Promise, PromiseOrValue,
 };
 
-
-
-
 near_sdk::setup_alloc!();
 
 #[near_bindgen]
@@ -60,7 +57,6 @@ impl Contract {
     }
 }
 
-
 near_contract_standards::impl_non_fungible_token_core!(Contract, tokens);
 near_contract_standards::impl_non_fungible_token_approval!(Contract, tokens);
 near_contract_standards::impl_non_fungible_token_enumeration!(Contract, tokens);
@@ -71,7 +67,6 @@ impl NonFungibleTokenMetadataProvider for Contract {
         self.metadata.get().unwrap()
     }
 }
-
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
