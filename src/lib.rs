@@ -148,6 +148,57 @@ impl NonFungibleTokenResolver for Contract {
     }
 }
 
+// payout
+
+pub type Payout = HashMap<AccountId, U128>;
+
+#[near_bindgen]
+impl Contract {
+    /// 支付固定账号10%
+    pub fn nft_payout(
+        &self,
+        token_id: TokenId,
+        balance: U128,
+        max_len_payout: u32
+    ) -> Payout {
+        assert!(max_len_payout >= 1, "Exceed max len payout");
+        let current_owner_id = self.tokens.owner_by_id.get(&token_id).expect("Token not exist");
+
+        let total_amount: u128 = balance.into();
+        let mut payout: Payout = HashMap::new();
+        let creator_id: AccountId = "foo.near".to_string();
+
+        // pay creator 10%
+        let creator_amount = total_amount / 10u128;
+        payout.insert(creator_id, U128(creator_amount));
+
+        // current owner get the rest
+        payout.insert(current_owner_id, U128(total_amount - creator_amount));
+
+        return payout;
+    }
+
+    #[payable]
+    pub fn nft_transfer_payout(
+        &mut self, 
+        receiver_id: ValidAccountId,
+        token_id: TokenId,
+        approval_id: Option<u64>,
+        balance: Option<U128>,
+        max_len_payout: Option<u32>
+    ) -> Option<Payout> {
+        let payout = if let Some(balance) = balance {
+            Some(self.nft_payout(token_id.clone(), balance, max_len_payout.unwrap_or_default()))
+        }  else {
+            None
+        };
+
+        self.nft_transfer(receiver_id, token_id, approval_id, None);
+
+        return payout;
+    }
+}
+
 near_contract_standards::impl_non_fungible_token_approval!(Contract, tokens);
 near_contract_standards::impl_non_fungible_token_enumeration!(Contract, tokens);
 
