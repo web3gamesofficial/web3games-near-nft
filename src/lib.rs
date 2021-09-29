@@ -1,6 +1,9 @@
 use near_contract_standards::non_fungible_token::metadata::{
     NFTContractMetadata, NonFungibleTokenMetadataProvider, TokenMetadata,
 };
+use near_contract_standards::non_fungible_token::core::{
+    NonFungibleTokenCore, NonFungibleTokenResolver,
+};
 use near_contract_standards::non_fungible_token::{Token, TokenId};
 use near_contract_standards::non_fungible_token::NonFungibleToken;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
@@ -8,7 +11,9 @@ use near_sdk::collections::LazyOption;
 use near_sdk::json_types::ValidAccountId;
 use near_sdk::{
     env, near_bindgen, AccountId, BorshStorageKey, PanicOnDefault, Promise, PromiseOrValue,
+    serde_json::json
 };
+use std::collections::HashMap;
 
 near_sdk::setup_alloc!();
 
@@ -57,7 +62,92 @@ impl Contract {
     }
 }
 
-near_contract_standards::impl_non_fungible_token_core!(Contract, tokens);
+
+/// 需要override原先的实现，因为需要按照paras的规范修改log
+#[near_bindgen]
+impl NonFungibleTokenCore for Contract {
+    fn nft_token(self, token_id: TokenId) -> Option<Token> {
+        self.tokens.nft_token(token_id)
+    }
+
+    fn mint(
+        &mut self,
+        token_id: TokenId, 
+        token_owner_id: ValidAccountId, 
+        token_metadata: Option<TokenMetadata>
+    ) -> Token {
+        panic!("please call nft_mint")
+    }
+
+    fn nft_transfer(
+        &mut self,
+        receiver_id: ValidAccountId, 
+        token_id: TokenId, 
+        approval_id: Option<u64>, 
+        memo: Option<String>
+    ) {
+        self.tokens.nft_transfer(receiver_id.clone(), token_id.clone(), approval_id, memo);
+        let owner_id = self.tokens.owner_by_id.get(&token_id).unwrap();
+        env::log(
+            json!({
+                "type": "nft_transfer",
+                "params": {
+                    "token_id": token_id,
+                    "sender_id": owner_id,
+                    "receiver_id": receiver_id,
+                }
+            })
+            .to_string()
+            .as_bytes()
+        );
+    }
+
+    fn nft_transfer_call(
+        &mut self,
+        receiver_id: ValidAccountId, 
+        token_id: TokenId, 
+        approval_id: Option<u64>, 
+        memo: Option<String>, 
+        msg: String
+    ) -> PromiseOrValue<bool> {
+        self.tokens.nft_transfer_call(receiver_id, token_id, approval_id, memo, msg)
+    }
+}
+
+impl NonFungibleTokenResolver for Contract {
+    fn nft_resolve_transfer(
+        &mut self,
+        previous_owner_id: AccountId, 
+        receiver_id: AccountId, 
+        token_id: TokenId, 
+        approvals: Option<HashMap<AccountId, u64>>
+    ) -> bool {
+        let transferred = self.tokens.nft_resolve_transfer(
+            previous_owner_id.clone(),
+            receiver_id.clone(),
+            token_id.clone(),
+            approvals,
+        );
+
+        if transferred {
+            env::log(
+                json!({
+                    "type": "nft_transfer",
+                    "params": {
+                        "token_id": token_id,
+                        "sender_id": previous_owner_id,
+                        "receiver_id": receiver_id,
+                    }
+                })
+                .to_string()
+                .as_bytes()
+            );
+        };
+
+        return transferred;
+    }
+}
+
 near_contract_standards::impl_non_fungible_token_approval!(Contract, tokens);
 near_contract_standards::impl_non_fungible_token_enumeration!(Contract, tokens);
 
