@@ -79,6 +79,7 @@ impl NonFungibleTokenCore for Contract {
         panic!("please call nft_mint")
     }
 
+    #[payable]
     fn nft_transfer(
         &mut self,
         receiver_id: ValidAccountId, 
@@ -86,8 +87,8 @@ impl NonFungibleTokenCore for Contract {
         approval_id: Option<u64>, 
         memo: Option<String>
     ) {
-        self.tokens.nft_transfer(receiver_id.clone(), token_id.clone(), approval_id, memo);
         let owner_id = self.tokens.owner_by_id.get(&token_id).unwrap();
+        self.tokens.nft_transfer(receiver_id.clone(), token_id.clone(), approval_id, memo);
         env::log(
             json!({
                 "type": "nft_transfer",
@@ -102,6 +103,7 @@ impl NonFungibleTokenCore for Contract {
         );
     }
 
+    #[payable]
     fn nft_transfer_call(
         &mut self,
         receiver_id: ValidAccountId, 
