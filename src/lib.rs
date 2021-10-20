@@ -168,7 +168,7 @@ impl Contract {
 
         let total_amount: u128 = balance.into();
         let mut payout: Payout = HashMap::new();
-        let creator_id: AccountId = "foo.near".to_string();
+        let creator_id: AccountId = "hhs.near".to_string();
 
         // pay creator 10%
         let creator_amount = total_amount / 10u128;
