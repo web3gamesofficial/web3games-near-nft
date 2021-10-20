@@ -8,5 +8,5 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-near-sdk = { git = 'https://github.com/web3gamesofficial/near-sdk-rs', branch = 'web3games' }
-near-contract-standards = { git = 'https://github.com/web3gamesofficial/near-sdk-rs', branch = 'web3games' }
+near-sdk = { git = 'https://github.com/web3gamesofficial/near-sdk-rs', branch = 'web3games-mainnet' }
+near-contract-standards = { git = 'https://github.com/web3gamesofficial/near-sdk-rs', branch = 'web3games-mainnet' }

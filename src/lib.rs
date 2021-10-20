@@ -1,6 +1,9 @@
 use near_contract_standards::non_fungible_token::metadata::{
     NFTContractMetadata, NonFungibleTokenMetadataProvider, TokenMetadata,
 };
+use near_contract_standards::non_fungible_token::core::{
+    NonFungibleTokenCore, NonFungibleTokenResolver,
+};
 use near_contract_standards::non_fungible_token::{Token, TokenId};
 use near_contract_standards::non_fungible_token::NonFungibleToken;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
@@ -8,7 +11,9 @@ use near_sdk::collections::LazyOption;
 use near_sdk::json_types::ValidAccountId;
 use near_sdk::{
     env, near_bindgen, AccountId, BorshStorageKey, PanicOnDefault, Promise, PromiseOrValue,
+    serde_json::json
 };
+use std::collections::HashMap;
 
 near_sdk::setup_alloc!();
 
@@ -57,7 +62,145 @@ impl Contract {
     }
 }
 
-near_contract_standards::impl_non_fungible_token_core!(Contract, tokens);
+
+/// 需要override原先的实现，因为需要按照paras的规范修改log
+#[near_bindgen]
+impl NonFungibleTokenCore for Contract {
+    fn nft_token(self, token_id: TokenId) -> Option<Token> {
+        self.tokens.nft_token(token_id)
+    }
+
+    fn mint(
+        &mut self,
+        token_id: TokenId, 
+        token_owner_id: ValidAccountId, 
+        token_metadata: Option<TokenMetadata>
+    ) -> Token {
+        panic!("please call nft_mint")
+    }
+
+    #[payable]
+    fn nft_transfer(
+        &mut self,
+        receiver_id: ValidAccountId, 
+        token_id: TokenId, 
+        approval_id: Option<u64>, 
+        memo: Option<String>
+    ) {
+        let owner_id = self.tokens.owner_by_id.get(&token_id).unwrap();
+        self.tokens.nft_transfer(receiver_id.clone(), token_id.clone(), approval_id, memo);
+        env::log(
+            json!({
+                "type": "nft_transfer",
+                "params": {
+                    "token_id": token_id,
+                    "sender_id": owner_id,
+                    "receiver_id": receiver_id,
+                }
+            })
+            .to_string()
+            .as_bytes()
+        );
+    }
+
+    #[payable]
+    fn nft_transfer_call(
+        &mut self,
+        receiver_id: ValidAccountId, 
+        token_id: TokenId, 
+        approval_id: Option<u64>, 
+        memo: Option<String>, 
+        msg: String
+    ) -> PromiseOrValue<bool> {
+        self.tokens.nft_transfer_call(receiver_id, token_id, approval_id, memo, msg)
+    }
+}
+
+impl NonFungibleTokenResolver for Contract {
+    fn nft_resolve_transfer(
+        &mut self,
+        previous_owner_id: AccountId, 
+        receiver_id: AccountId, 
+        token_id: TokenId, 
+        approvals: Option<HashMap<AccountId, u64>>
+    ) -> bool {
+        let transferred = self.tokens.nft_resolve_transfer(
+            previous_owner_id.clone(),
+            receiver_id.clone(),
+            token_id.clone(),
+            approvals,
+        );
+
+        if transferred {
+            env::log(
+                json!({
+                    "type": "nft_transfer",
+                    "params": {
+                        "token_id": token_id,
+                        "sender_id": previous_owner_id,
+                        "receiver_id": receiver_id,
+                    }
+                })
+                .to_string()
+                .as_bytes()
+            );
+        };
+
+        return transferred;
+    }
+}
+
+// payout
+
+pub type Payout = HashMap<AccountId, U128>;
+
+#[near_bindgen]
+impl Contract {
+    /// 支付固定账号10%
+    pub fn nft_payout(
+        &self,
+        token_id: TokenId,
+        balance: U128,
+        max_len_payout: u32
+    ) -> Payout {
+        assert!(max_len_payout >= 1, "Exceed max len payout");
+        let current_owner_id = self.tokens.owner_by_id.get(&token_id).expect("Token not exist");
+
+        let total_amount: u128 = balance.into();
+        let mut payout: Payout = HashMap::new();
+        let creator_id: AccountId = "hhs.near".to_string();
+
+        // pay creator 10%
+        let creator_amount = total_amount / 10u128;
+        payout.insert(creator_id, U128(creator_amount));
+
+        // current owner get the rest
+        payout.insert(current_owner_id, U128(total_amount - creator_amount));
+
+        return payout;
+    }
+
+    #[payable]
+    pub fn nft_transfer_payout(
+        &mut self, 
+        receiver_id: ValidAccountId,
+        token_id: TokenId,
+        approval_id: Option<u64>,
+        balance: Option<U128>,
+        max_len_payout: Option<u32>
+    ) -> Option<Payout> {
+        let payout = if let Some(balance) = balance {
+            Some(self.nft_payout(token_id.clone(), balance, max_len_payout.unwrap_or_default()))
+        }  else {
+            None
+        };
+
+        self.nft_transfer(receiver_id, token_id, approval_id, None);
+
+        return payout;
+    }
+}
+
 near_contract_standards::impl_non_fungible_token_approval!(Contract, tokens);
 near_contract_standards::impl_non_fungible_token_enumeration!(Contract, tokens);
 
