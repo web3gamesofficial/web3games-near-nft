@@ -62,6 +62,13 @@ impl Contract {
     }
 }
 
+impl Contract {
+    fn block_transfer(&self, token_id: &str) -> bool {
+        let black_list = vec!["BW035", "BW102", "BE053", "BE140"];
+        return black_list.contains(&token_id);
+    }
+}
+
 
 /// 需要override原先的实现，因为需要按照paras的规范修改log
 #[near_bindgen]
@@ -87,6 +94,9 @@ impl NonFungibleTokenCore for Contract {
         approval_id: Option<u64>, 
         memo: Option<String>
     ) {
+        if self.block_transfer(&token_id) {
+            panic!("This token is not allowed to be transferred now.");
+        }
         let owner_id = self.tokens.owner_by_id.get(&token_id).unwrap();
         self.tokens.nft_transfer(receiver_id.clone(), token_id.clone(), approval_id, memo);
         env::log(
@@ -112,6 +122,9 @@ impl NonFungibleTokenCore for Contract {
         memo: Option<String>, 
         msg: String
     ) -> PromiseOrValue<bool> {
+        if self.block_transfer(&token_id) {
+            panic!("This token is not allowed to be transferred now.");
+        }
         self.tokens.nft_transfer_call(receiver_id, token_id, approval_id, memo, msg)
     }
 }
